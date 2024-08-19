@@ -14,36 +14,22 @@ defmodule BoomNotifier.NotificationSender do
     GenServer.start_link(__MODULE__, :ok, name: __MODULE__)
   end
 
-  def async_notify(notifier, occurrences, options) do
-    GenServer.cast(__MODULE__, {:notify, notifier, occurrences, options})
-  end
-
   def async_trigger_notify(settings, error_info) do
     GenServer.cast(__MODULE__, {:trigger_notify, settings, error_info})
   end
 
-  def notify(notifier, occurrences, options) do
-    spawn_link(fn ->
-      notifier.notify(occurrences, options)
-    end)
-  end
-
-  def notify_all(settings, error_info) do
-    notification_trigger = Keyword.get(settings, :notification_trigger, :always)
-    occurrences = Map.put(error_info, :occurrences, ErrorStorage.get_error_stats(error_info))
-
-    ErrorStorage.reset_accumulated_errors(notification_trigger, error_info)
-
-    BoomNotifier.walkthrough_notifiers(
+  def trigger_notify(settings, error_info) do
+    do_trigger_notify(
+      Keyword.get(settings, :groupping, :counting),
       settings,
-      fn notifier, options -> notify(notifier, occurrences, options) end
+      error_info
     )
   end
 
-  def trigger_notify(settings, error_info) do
-    timeout = Keyword.get(settings, :time_limit)
+  def do_trigger_notify(:counting, settings, error_info) do
+    timeout = Keyword.get(settings, :counting_timeout)
 
-    ErrorStorage.store_error(error_info)
+    ErrorStorage.accumulate(error_info)
 
     if ErrorStorage.send_notification?(error_info) do
       notify_all(settings, error_info)
@@ -52,9 +38,15 @@ defmodule BoomNotifier.NotificationSender do
       if timeout do
         {:schedule, timeout}
       else
-        :ok
+        :ignored
       end
     end
+  end
+
+  def do_trigger_notify(:throttle, settings, _error_info) do
+    throttle = Keyword.get(settings, :throttle, 100)
+
+    {:schedule, throttle}
   end
 
   # Server callbacks
@@ -79,6 +71,9 @@ defmodule BoomNotifier.NotificationSender do
     cancel_timer(timer)
 
     case trigger_notify(settings, error_info) do
+      :ignored ->
+        {:noreply, state}
+
       :ok ->
         {:noreply, state}
 
@@ -114,6 +109,29 @@ defmodule BoomNotifier.NotificationSender do
     notify_all(settings, error_info)
 
     {:noreply, state |> Map.delete(error_info.key)}
+  end
+
+  # Private methods
+
+  defp notify(notifier, occurrences, options) do
+    spawn_link(fn ->
+      notifier.notify(occurrences, options)
+    end)
+  end
+
+  defp notify_all(settings, error_info) do
+    counting_strategy = Keyword.get(settings, :counting)
+
+    if counting_strategy,
+      do: ErrorStorage.increment_max_counter(counting_strategy, error_info)
+
+    occurrences = Map.put(error_info, :occurrences, ErrorStorage.get_stats(error_info))
+    ErrorStorage.reset(error_info)
+
+    BoomNotifier.Api.walkthrough_notifiers(
+      settings,
+      fn notifier, options -> notify(notifier, occurrences, options) end
+    )
   end
 
   defp cancel_timer(nil), do: nil
