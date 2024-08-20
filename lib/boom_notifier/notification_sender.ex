@@ -20,14 +20,14 @@ defmodule BoomNotifier.NotificationSender do
 
   def trigger_notify(settings, error_info) do
     do_trigger_notify(
-      Keyword.get(settings, :groupping, :counting),
+      Keyword.get(settings, :groupping, :count),
       settings,
       error_info
     )
   end
 
-  def do_trigger_notify(:counting, settings, error_info) do
-    timeout = Keyword.get(settings, :counting_timeout)
+  defp do_trigger_notify(:count, settings, error_info) do
+    timeout = Keyword.get(settings, :count_timeout)
 
     ErrorStorage.accumulate(error_info)
 
@@ -43,7 +43,7 @@ defmodule BoomNotifier.NotificationSender do
     end
   end
 
-  def do_trigger_notify(:throttle, settings, _error_info) do
+  defp do_trigger_notify(:time, settings, _error_info) do
     throttle = Keyword.get(settings, :throttle, 100)
 
     {:schedule, throttle}
@@ -120,10 +120,10 @@ defmodule BoomNotifier.NotificationSender do
   end
 
   defp notify_all(settings, error_info) do
-    counting_strategy = Keyword.get(settings, :counting)
+    count_strategy = Keyword.get(settings, :count)
 
-    if counting_strategy,
-      do: ErrorStorage.increment_max_counter(counting_strategy, error_info)
+    if count_strategy,
+      do: ErrorStorage.increment_max_counter(count_strategy, error_info)
 
     occurrences = Map.put(error_info, :occurrences, ErrorStorage.get_stats(error_info))
     ErrorStorage.reset(error_info)

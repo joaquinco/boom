@@ -15,7 +15,8 @@ defmodule BoomNotifier.ErrorStorage do
   ]
 
   @type t :: %__MODULE__{}
-  @type error_strategy :: :always | :exponential | [exponential: [limit: non_neg_integer()]]
+  @type error_strategy ::
+          :always | :none | :exponential | [exponential: [limit: non_neg_integer()]]
 
   use Agent, start: {__MODULE__, :start_link, []}
 
@@ -89,7 +90,7 @@ defmodule BoomNotifier.ErrorStorage do
   end
 
   @doc """
-  Increment the max counter used for counting error throttling
+  Increment the max counter used for count groupping
   """
   @spec increment_max_counter(error_strategy, ErrorInfo.t()) :: :ok
   def increment_max_counter(:exponential, error_info) do
@@ -100,7 +101,7 @@ defmodule BoomNotifier.ErrorStorage do
     do_increment_max_counter(error_info, &min(&1 * 2, limit))
   end
 
-  def increment_max_counter(:always, error_info) do
+  def increment_max_counter(strategy, error_info) when strategy in ~w[none always]a do
     do_increment_max_counter(error_info, fn _ -> 1 end)
   end
 
