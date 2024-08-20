@@ -11,7 +11,6 @@ defmodule BoomNotifier.NotificationSenderTest do
 
   @time_limit 500
   @throttle 500
-  @pid_name __MODULE__
   @receive_timeout 100
 
   @settings_basic [
@@ -98,7 +97,7 @@ defmodule BoomNotifier.NotificationSenderTest do
 
     test "sends notification occurrences along error info", %{error_info: error_info} do
       for _ <- 1..7 do
-        NotificationSender.trigger_notify(@settings_groupping, error_info)
+        NotificationSender.trigger_notify(@settings_groupping_count, error_info)
       end
 
       assert_receive({:notify_called, %{occurrences: %{accumulated_occurrences: 1}}})
@@ -124,7 +123,7 @@ defmodule BoomNotifier.NotificationSenderTest do
       NotificationSender.async_trigger_notify(@settings_groupping_count, error_info)
 
       assert_receive({:notify_called, _}, @time_limit + @receive_timeout)
-      assert error_info |> ErrorStorage.get_error_stats() |> Map.get(:accumulated_occurrences) == 0
+      assert error_info |> ErrorStorage.get_stats() |> Map.get(:accumulated_occurrences) == 0
     end
 
     test "does not send a second notification before a timeout", %{error_info: error_info} do
@@ -201,6 +200,26 @@ defmodule BoomNotifier.NotificationSenderTest do
       error_key = error_info.key
       assert %{^error_key => _} = state
       assert state |> Map.keys() |> length() == 1
+    end
+
+    test "it sends a throttle notification if time limit is present", %{error_info: error_info} do
+      settings =
+        @settings_groupping_time
+        |> Keyword.merge(
+          throttle: 400,
+          time_limit: 100
+        )
+
+      for _ <- 1..3 do
+        NotificationSender.async_trigger_notify(
+          settings,
+          error_info |> Map.put(:timestamp, DateTime.utc_now())
+        )
+
+        :timer.sleep(100)
+      end
+
+      assert_received({:notify_called, _})
     end
   end
 end

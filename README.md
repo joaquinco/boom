@@ -183,7 +183,6 @@ defmodule YourApp.Router do
 
   use BoomNotifier,
     count: [:exponential],
->>>>>>> d272dfa (update README.md)
     time_limit: :timer.minutes(30),
     notifier: CustomNotifier
 

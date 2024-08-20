@@ -141,6 +141,16 @@ defmodule BoomNotifier.ErrorStorage do
     )
   end
 
+  def eleapsed(nil), do: 0
+
+  def eleapsed(%__MODULE__{} = error_info) do
+    DateTime.diff(
+      error_info.last_occurrence,
+      error_info.first_occurrence,
+      :millisecond
+    )
+  end
+
   @spec do_send_notification?(ErrorInfo.t() | nil) :: boolean()
   defp do_send_notification?(nil), do: false
 

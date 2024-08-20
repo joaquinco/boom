@@ -19,6 +19,8 @@ defmodule BoomNotifier.NotificationSender do
   end
 
   def trigger_notify(settings, error_info) do
+    ErrorStorage.accumulate(error_info)
+
     do_trigger_notify(
       Keyword.get(settings, :groupping, :count),
       settings,
@@ -27,26 +29,32 @@ defmodule BoomNotifier.NotificationSender do
   end
 
   defp do_trigger_notify(:count, settings, error_info) do
-    timeout = Keyword.get(settings, :time_limit)
-
-    ErrorStorage.accumulate(error_info)
+    time_limit = Keyword.get(settings, :time_limit)
 
     if ErrorStorage.send_notification?(error_info) do
       notify_all(settings, error_info)
       :ok
     else
-      if timeout do
-        {:schedule, timeout}
+      if time_limit do
+        {:schedule, time_limit}
       else
         :ignored
       end
     end
   end
 
-  defp do_trigger_notify(:time, settings, _error_info) do
+  defp do_trigger_notify(:time, settings, error_info) do
     throttle = Keyword.get(settings, :throttle, 100)
+    time_limit = Keyword.get(settings, :time_limit)
 
-    {:schedule, throttle}
+    stats = ErrorStorage.get_stats(error_info)
+
+    if ErrorStorage.eleapsed(stats) >= time_limit do
+      notify_all(settings, error_info)
+      :ok
+    else
+      {:schedule, throttle}
+    end
   end
 
   # Server callbacks
@@ -128,7 +136,7 @@ defmodule BoomNotifier.NotificationSender do
     occurrences = Map.put(error_info, :occurrences, ErrorStorage.get_stats(error_info))
     ErrorStorage.reset(error_info)
 
-    BoomNotifier.Api.walkthrough_notifiers(
+    BoomNotifier.walkthrough_notifiers(
       settings,
       fn notifier, options -> notify(notifier, occurrences, options) end
     )
