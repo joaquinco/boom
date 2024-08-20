@@ -27,7 +27,7 @@ defmodule BoomNotifier.NotificationSender do
   end
 
   defp do_trigger_notify(:count, settings, error_info) do
-    timeout = Keyword.get(settings, :count_timeout)
+    timeout = Keyword.get(settings, :time_limit)
 
     ErrorStorage.accumulate(error_info)
 
