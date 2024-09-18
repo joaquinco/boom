@@ -119,7 +119,7 @@ defmodule BoomNotifier.ErrorStorage do
     )
   end
 
-  @spec reset(ErrorInfo.t()) :: ErrorStorage.t()
+  @spec reset(ErrorInfo.t()) :: :ok
   def reset(error_info) do
     %{key: error_hash_key} = error_info
 
