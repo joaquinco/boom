@@ -24,7 +24,7 @@ defmodule ErrorStorageTest do
     clear_error_storage()
   end
 
-  describe "store_error/1" do
+  describe "accumulate/1" do
     test "groups errors by type" do
       another_timestamp = DateTime.utc_now()
 
@@ -41,9 +41,9 @@ defmodule ErrorStorageTest do
 
       %{key: another_error_hash} = another_error_info
 
-      ErrorStorage.store_error(@error_info)
-      ErrorStorage.store_error(@error_info)
-      ErrorStorage.store_error(another_error_info)
+      ErrorStorage.accumulate(@error_info)
+      ErrorStorage.accumulate(@error_info)
+      ErrorStorage.accumulate(another_error_info)
 
       %{@error_hash => error_stat_1, ^another_error_hash => error_stat_2} =
         Agent.get(:boom_notifier, & &1)
@@ -66,8 +66,8 @@ defmodule ErrorStorageTest do
 
   describe "get_stats/1" do
     test "returns the errors for the proper error kind" do
-      ErrorStorage.store_error(@error_info)
-      ErrorStorage.store_error(@error_info)
+      ErrorStorage.accumulate(@error_info)
+      ErrorStorage.accumulate(@error_info)
 
       assert ErrorStorage.get_stats(@error_info) ==
                %ErrorStorage{
@@ -85,7 +85,7 @@ defmodule ErrorStorageTest do
         timestamp: another_timestamp
       }
 
-      ErrorStorage.store_error(another_error_info)
+      ErrorStorage.accumulate(another_error_info)
 
       assert ErrorStorage.get_stats(another_error_info) ==
                %ErrorStorage{
@@ -104,20 +104,20 @@ defmodule ErrorStorageTest do
   describe "send_notification?/1" do
     test "returns false when count is smaller than the error length" do
       # increase the max capacity to 2
-      ErrorStorage.store_error(@error_info)
+      ErrorStorage.accumulate(@error_info)
       ErrorStorage.reset_stats(@error_info, :exponential)
-      ErrorStorage.store_error(@error_info)
+      ErrorStorage.accumulate(@error_info)
 
       refute ErrorStorage.send_notification?(@error_info)
     end
 
     test "returns true when error length is greater or equal than count" do
       # creates the error key
-      ErrorStorage.store_error(@error_info)
+      ErrorStorage.accumulate(@error_info)
       # increase the max capacity to 2
       ErrorStorage.reset_stats(@error_info, :exponential)
-      ErrorStorage.store_error(@error_info)
-      ErrorStorage.store_error(@error_info)
+      ErrorStorage.accumulate(@error_info)
+      ErrorStorage.accumulate(@error_info)
 
       another_error_info = %ErrorInfo{
         reason: "Another error information",
@@ -126,12 +126,12 @@ defmodule ErrorStorageTest do
       }
 
       # creates the error key
-      ErrorStorage.store_error(another_error_info)
+      ErrorStorage.accumulate(another_error_info)
       # increase the max capacity to 2
       ErrorStorage.reset_stats(another_error_info, :exponential)
-      ErrorStorage.store_error(another_error_info)
-      ErrorStorage.store_error(another_error_info)
-      ErrorStorage.store_error(another_error_info)
+      ErrorStorage.accumulate(another_error_info)
+      ErrorStorage.accumulate(another_error_info)
+      ErrorStorage.accumulate(another_error_info)
 
       assert ErrorStorage.send_notification?(@error_info)
       assert ErrorStorage.send_notification?(another_error_info)
@@ -144,7 +144,7 @@ defmodule ErrorStorageTest do
 
   describe "reset_stats/2" do
     test "it returns the error storage info" do
-      ErrorStorage.store_error(@error_info)
+      ErrorStorage.accumulate(@error_info)
       error_storage_item = ErrorStorage.reset_stats(@error_info)
 
       assert %{accumulated_occurrences: 1} = error_storage_item
@@ -159,7 +159,7 @@ defmodule ErrorStorageTest do
     end
 
     test "increases the counter when notification trigger is :exponential" do
-      ErrorStorage.store_error(@error_info)
+      ErrorStorage.accumulate(@error_info)
 
       ErrorStorage.reset_stats(@error_info, :exponential)
       [error_stat] = Agent.get(:boom_notifier, fn state -> state end) |> Map.values()
@@ -192,8 +192,8 @@ defmodule ErrorStorageTest do
              }
     end
 
-    test "increases the counter when notification trigger is :exponential and :limit is set" do
-      ErrorStorage.store_error(@error_info)
+    test "increases the counter when count is :exponential and :limit is set" do
+      ErrorStorage.accumulate(@error_info)
 
       ErrorStorage.reset_stats(@error_info, exponential: [limit: 5])
       [error_stat] = Agent.get(:boom_notifier, fn state -> state end) |> Map.values()
@@ -227,7 +227,7 @@ defmodule ErrorStorageTest do
     end
 
     test "does not increase the counter when notification_trigger is :always" do
-      ErrorStorage.store_error(@error_info)
+      ErrorStorage.accumulate(@error_info)
 
       ErrorStorage.reset_stats(@error_info, :always)
       [error_stat] = Agent.get(:boom_notifier, fn state -> state end) |> Map.values()
@@ -266,8 +266,8 @@ defmodule ErrorStorageTest do
 
       %{key: another_error_hash} = another_error_info
 
-      ErrorStorage.store_error(@error_info)
-      ErrorStorage.store_error(another_error_info)
+      ErrorStorage.accumulate(@error_info)
+      ErrorStorage.accumulate(another_error_info)
 
       ErrorStorage.reset_stats(@error_info, :exponential)
 

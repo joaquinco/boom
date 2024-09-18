@@ -15,7 +15,8 @@ defmodule BoomNotifier.ErrorStorage do
   ]
 
   @type t :: %__MODULE__{}
-  @type error_strategy :: :always | :exponential | [exponential: [limit: non_neg_integer()]]
+  @type error_strategy ::
+          :always | :none | :exponential | [exponential: [limit: non_neg_integer()]]
 
   use Agent, start: {__MODULE__, :start_link, []}
 
@@ -32,8 +33,8 @@ defmodule BoomNotifier.ErrorStorage do
   occurrences is increased and it also updates the first and last time it
   happened.
   """
-  @spec store_error(ErrorInfo.t()) :: :ok
-  def store_error(error_info) do
+  @spec accumulate(ErrorInfo.t()) :: :ok
+  def accumulate(error_info) do
     %{key: error_hash_key} = error_info
     timestamp = error_info.timestamp || DateTime.utc_now()
 
@@ -137,7 +138,17 @@ defmodule BoomNotifier.ErrorStorage do
     |> Map.replace!(:last_occurrence, nil)
   end
 
-  @spec do_send_notification?(nil | __MODULE__.t()) :: boolean()
+  def eleapsed(nil), do: 0
+
+  def eleapsed(%__MODULE__{} = error_info) do
+    DateTime.diff(
+      error_info.last_occurrence,
+      error_info.first_occurrence,
+      :millisecond
+    )
+  end
+
+  @spec do_send_notification?(ErrorInfo.t() | nil) :: boolean()
   defp do_send_notification?(nil), do: false
 
   defp do_send_notification?(error_storage_item) do
