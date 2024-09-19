@@ -226,7 +226,7 @@ defmodule ErrorStorageTest do
              }
     end
 
-    test "does not increase the counter when notification_trigger is :always" do
+    test "does not increase the counter when count is :always" do
       ErrorStorage.accumulate(@error_info)
 
       ErrorStorage.reset_stats(@error_info, :always)
