@@ -39,7 +39,15 @@ defmodule BoomNotifier.NotificationSender do
     )
   end
 
+  @doc """
+  Call notifiers if error_info should trigger a notification
+  according to settings and the acumulated errors.
+
+  It returns :ok if notification were triggered or {:schedule, time}
+  if it should be delayed and by how much.
+  """
   def trigger_notify(settings, error_info) do
+    settings = BoomNotifier.to_config(settings)
     timeout = Keyword.get(settings, :time_limit)
 
     ErrorStorage.store_error(error_info)
